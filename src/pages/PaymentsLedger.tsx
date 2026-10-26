@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { mockPayments } from '../mocks/paymentsData';
-import type { PaymentTransaction } from '../mocks/paymentsData';
+import { apiClient } from '../services/api';
 import { Search, Filter, CreditCard, CheckCircle2, Building2, Download } from 'lucide-react';
+import { formatINR } from '../utils/validation';
 
 export const PaymentsLedger: React.FC = () => {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('All');
 
-  const filteredPayments = mockPayments.filter((pay: PaymentTransaction) => {
+  useEffect(() => {
+    apiClient.getPayments()
+      .then(data => setPayments(data))
+      .catch(err => console.error('Failed to load payments:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredPayments = payments.filter((pay) => {
     const matchesSearch = 
       pay.transactionRef.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pay.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -19,18 +28,20 @@ export const PaymentsLedger: React.FC = () => {
     return matchesSearch && matchesMethod;
   });
 
-  const totalCollected = mockPayments
-    .filter((p: PaymentTransaction) => p.status === 'Completed')
-    .reduce((sum: number, p: PaymentTransaction) => sum + p.amount, 0);
+  const totalCollected = payments
+    .filter((p) => p.status === 'Completed')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500 font-medium">Loading payments ledger from SQLite...</div>;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Payments Ledger</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Real-time audit log of all received client payments and transaction references.
-          </p>
+          <p className="text-sm text-slate-500">Live SQLite transaction log of all received client payments.</p>
         </div>
         <button 
           onClick={() => window.print()}
@@ -43,15 +54,11 @@ export const PaymentsLedger: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
           <p className="text-xs font-semibold text-slate-500">Total Payments Logged</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">${totalCollected.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatINR(totalCollected)}</p>
         </div>
         <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
           <p className="text-xs font-semibold text-slate-500">Total Transactions</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{mockPayments.length}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <p className="text-xs font-semibold text-slate-500">Primary Payment Mode</p>
-          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">Bank Transfer / NEFT</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{payments.length}</p>
         </div>
       </div>
 
@@ -100,33 +107,41 @@ export const PaymentsLedger: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {filteredPayments.map((pay: PaymentTransaction) => (
-                <tr key={pay.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
-                  <td className="p-4 font-mono text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    {pay.transactionRef}
-                  </td>
-                  <td className="p-4 font-semibold text-blue-600 dark:text-blue-400">
-                    <Link to="/dashboard/invoices">{pay.invoiceNumber}</Link>
-                  </td>
-                  <td className="p-4">
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">{pay.clientName}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <Building2 className="w-3 h-3"/> {pay.clientCompany}
-                    </p>
-                  </td>
-                  <td className="p-4 text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5 pt-5">
-                    <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                    {pay.paymentMethod}
-                  </td>
-                  <td className="p-4 text-xs text-slate-600 dark:text-slate-400">{pay.paymentDate}</td>
-                  <td className="p-4 font-bold text-emerald-600 dark:text-emerald-400">${pay.amount.toLocaleString()}</td>
-                  <td className="p-4 text-right">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                      <CheckCircle2 className="w-3 h-3"/> {pay.status}
-                    </span>
+              {filteredPayments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-400">
+                    No payment transactions recorded yet. Payments recorded on invoices will appear here.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredPayments.map((pay) => (
+                  <tr key={pay.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                    <td className="p-4 font-mono text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      {pay.transactionRef}
+                    </td>
+                    <td className="p-4 font-semibold text-blue-600 dark:text-blue-400">
+                      <Link to="/dashboard/invoices">{pay.invoiceNumber}</Link>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{pay.clientName}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Building2 className="w-3 h-3"/> {pay.clientCompany}
+                      </p>
+                    </td>
+                    <td className="p-4 text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5 pt-5">
+                      <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                      {pay.paymentMethod}
+                    </td>
+                    <td className="p-4 text-xs text-slate-600 dark:text-slate-400">{pay.paymentDate}</td>
+                    <td className="p-4 font-bold text-emerald-600 dark:text-emerald-400">{formatINR(pay.amount)}</td>
+                    <td className="p-4 text-right">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <CheckCircle2 className="w-3 h-3"/> {pay.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

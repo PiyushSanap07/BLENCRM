@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { mockEstimates } from '../mocks/estimatesData';
 import type { Estimate } from '../mocks/estimatesData';
 import { Plus, Search, Building2, FileSpreadsheet, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
+import { formatINR } from '../utils/validation';
 
 export const EstimatesList: React.FC = () => {
   const navigate = useNavigate();
@@ -43,7 +44,10 @@ export const EstimatesList: React.FC = () => {
             Draft project quotes and convert accepted estimates directly into invoices.
           </p>
         </div>
-        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+        <button 
+          onClick={() => navigate('/dashboard/invoices/new')}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-sm font-medium transition-all shadow-sm cursor-pointer"
+        >
           <Plus className="w-4 h-4" /> Create Estimate
         </button>
       </div>
@@ -75,31 +79,39 @@ export const EstimatesList: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {filteredEstimates.map((est: Estimate) => (
-                <tr key={est.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
-                  <td className="p-4 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                    {est.estimateNumber}
-                  </td>
-                  <td className="p-4">
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">{est.clientName}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <Building2 className="w-3 h-3"/> {est.clientCompany}
-                    </p>
-                  </td>
-                  <td className="p-4 text-xs text-slate-600 dark:text-slate-400">{est.validUntil}</td>
-                  <td className="p-4 font-bold text-slate-900 dark:text-slate-100">${est.totalAmount.toLocaleString()}</td>
-                  <td className="p-4">{getStatusBadge(est.status)}</td>
-                  <td className="p-4 text-right">
-                    <button 
-                      onClick={() => handleConvertToInvoice(est)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-md transition-colors"
-                    >
-                      Convert to Invoice <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+              {filteredEstimates.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    No estimates created yet. Click "Create Estimate" to generate your first quote.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredEstimates.map((est: Estimate) => (
+                  <tr key={est.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                    <td className="p-4 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+                      {est.estimateNumber}
+                    </td>
+                    <td className="p-4">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{est.clientName}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Building2 className="w-3 h-3"/> {est.clientCompany}
+                      </p>
+                    </td>
+                    <td className="p-4 text-xs text-slate-600 dark:text-slate-400">{est.validUntil}</td>
+                    <td className="p-4 font-bold text-slate-900 dark:text-slate-100">{formatINR(est.totalAmount)}</td>
+                    <td className="p-4">{getStatusBadge(est.status)}</td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => handleConvertToInvoice(est)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-md transition-colors"
+                      >
+                        Convert to Invoice <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

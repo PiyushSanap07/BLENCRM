@@ -1,27 +1,29 @@
 import React, { useState } from 'react';
 import { 
-  Building2, DollarSign, Bell, Shield, Save, Check, Globe, Mail, Phone, Sun, Moon 
+  Building2, IndianRupee, Bell, Shield, Save, Check, Globe, Mail, Phone, Sun, Moon, AlertCircle 
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { validateIndianPhone } from '../utils/validation';
 
 export const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'general' | 'invoicing' | 'notifications' | 'security'>('general');
   const [saved, setSaved] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const { theme, setTheme } = useTheme();
 
   // General Settings State
   const [companyName, setCompanyName] = useState('BLENDIGITAL');
   const [tagline, setTagline] = useState('Digital Agency & Custom Software Development');
   const [companyEmail, setCompanyEmail] = useState('contact@blendigital.io');
-  const [companyPhone, setCompanyPhone] = useState('+1 (555) 234-5678');
-  const [currency, setCurrency] = useState('USD ($)');
-  const [timezone, setTimezone] = useState('America/New_York (UTC-5)');
+  const [companyPhone, setCompanyPhone] = useState('9876543210');
+  const [currency, setCurrency] = useState('INR (₹)');
+  const [timezone, setTimezone] = useState('Asia/Kolkata (IST +5:30)');
 
   // Invoicing Settings
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
-  const [defaultTaxRate, setDefaultTaxRate] = useState(10);
+  const [defaultTaxRate, setDefaultTaxRate] = useState(18); // 18% GST
   const [paymentTerms, setPaymentTerms] = useState('Net 15');
-  const [bankDetails, setBankDetails] = useState('Silicon Valley Bank | Routing: 121000358 | A/C: 9876543210');
+  const [bankDetails, setBankDetails] = useState('HDFC Bank | IFSC: HDFC0001234 | A/C: 50200012345678 | UPI: blendigital@hdfcbank');
 
   // Notification Toggles
   const [notifyOnNewLead, setNotifyOnNewLead] = useState(true);
@@ -30,6 +32,14 @@ export const AdminSettings: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    const phoneVal = validateIndianPhone(companyPhone);
+    if (!phoneVal.isValid) {
+      setErrorMsg(phoneVal.error || 'Please enter a valid 10-digit Indian mobile number for Official Phone.');
+      return;
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -80,7 +90,7 @@ export const AdminSettings: React.FC = () => {
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
           }`}
         >
-          <DollarSign className="w-4 h-4" /> Invoicing & Tax
+          <IndianRupee className="w-4 h-4" /> Invoicing & Tax
         </button>
         <button
           onClick={() => setActiveTab('notifications')}
@@ -152,19 +162,38 @@ export const AdminSettings: React.FC = () => {
                 </div>
               </div>
 
+              {errorMsg && (
+                <div className="col-span-full p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-lg text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Official Phone
+                  Official Phone (Indian 10-Digit) <span className="text-rose-500">*</span>
                 </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <div className="relative flex items-center">
+                  <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 pointer-events-none">
+                    <Phone className="w-4 h-4" />
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 border-r border-slate-300 dark:border-slate-600 pr-1.5">+91</span>
+                  </div>
                   <input
-                    type="text"
+                    type="tel"
+                    required
+                    placeholder="98765 43210"
+                    maxLength={14}
                     value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => {
+                      setCompanyPhone(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
+                    className={`w-full pl-18 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border ${
+                      errorMsg ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-800 focus:ring-blue-500'
+                    } focus:outline-none focus:ring-2`}
                   />
                 </div>
+                <p className="text-[10px] text-slate-400 mt-1">10-digit mobile number starting with 6, 7, 8, or 9</p>
               </div>
 
               <div>
@@ -234,7 +263,7 @@ export const AdminSettings: React.FC = () => {
         {activeTab === 'invoicing' && (
           <div className="bg-white dark:bg-slate-950 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
             <h2 className="text-base font-semibold border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-500" /> Default Invoice Parameters
+              <IndianRupee className="w-4 h-4 text-emerald-500" /> Default Invoice Parameters
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

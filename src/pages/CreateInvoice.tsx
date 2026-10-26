@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Send } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Send, AlertCircle, Phone } from 'lucide-react';
 import type { InvoiceLineItem } from '../mocks/invoicesData';
+import { formatINR, validateIndianCurrency, validateIndianPhone } from '../utils/validation';
 
 export const CreateInvoice: React.FC = () => {
   const navigate = useNavigate();
@@ -9,10 +10,12 @@ export const CreateInvoice: React.FC = () => {
   const [clientName, setClientName] = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('INV-2026-092');
   const [issueDate, setIssueDate] = useState('2026-10-19');
   const [dueDate, setDueDate] = useState('2026-11-02');
-  const [taxRate, setTaxRate] = useState(10);
+  const [taxRate, setTaxRate] = useState(18); // Standard GST
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [items, setItems] = useState<InvoiceLineItem[]>([
     { id: '1', description: 'Full-Stack Web Application Development', quantity: 1, unitPrice: 2500, total: 2500 },
@@ -52,18 +55,57 @@ export const CreateInvoice: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+
+    if (!clientCompany.trim() || !clientName.trim() || !clientEmail.trim()) {
+      setErrorMessage('Company Name, Contact Name, and Billing Email are required.');
+      return;
+    }
+
+    if (clientPhone.trim()) {
+      const phoneVal = validateIndianPhone(clientPhone);
+      if (!phoneVal.isValid) {
+        setErrorMessage(phoneVal.error || 'Please enter a valid 10-digit Indian phone number.');
+        return;
+      }
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.description.trim()) {
+        setErrorMessage(`Row ${i + 1}: Service description is required.`);
+        return;
+      }
+      if (item.quantity <= 0) {
+        setErrorMessage(`Row ${i + 1}: Quantity must be at least 1.`);
+        return;
+      }
+      const priceVal = validateIndianCurrency(item.unitPrice, `Row ${i + 1} Price`, { allowZero: true });
+      if (!priceVal.isValid) {
+        setErrorMessage(priceVal.error || `Row ${i + 1}: Invalid price in Indian Rupees (₹).`);
+        return;
+      }
+    }
+
     navigate('/dashboard/invoices');
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl mx-auto">
+      {errorMessage && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-lg text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
           <Link to="/dashboard/invoices" className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline mb-2">
             <ArrowLeft className="w-3.5 h-3.5"/> Back to Invoices
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Create New Invoice</h1>
-          <p className="text-sm text-slate-500">Draft an invoice and itemize billable work for your client.</p>
+          <p className="text-sm text-slate-500">Draft an invoice and itemize billable work in Indian Rupees (₹).</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -86,7 +128,9 @@ export const CreateInvoice: React.FC = () => {
         <div className="space-y-4">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Client Information</h2>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Company Name</label>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Company Name <span className="text-rose-500">*</span>
+            </label>
             <input 
               type="text" 
               required
@@ -98,7 +142,9 @@ export const CreateInvoice: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Contact Name</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                Contact Name <span className="text-rose-500">*</span>
+              </label>
               <input 
                 type="text" 
                 required
@@ -109,7 +155,9 @@ export const CreateInvoice: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Billing Email</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                Billing Email <span className="text-rose-500">*</span>
+              </label>
               <input 
                 type="email" 
                 required
@@ -117,6 +165,25 @@ export const CreateInvoice: React.FC = () => {
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Client Phone (Indian 10-Digit)
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 pointer-events-none">
+                <Phone className="w-4 h-4" />
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 border-r border-slate-300 dark:border-slate-600 pr-1.5">+91</span>
+              </div>
+              <input 
+                type="tel"
+                placeholder="98765 43210"
+                maxLength={14}
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                className="w-full pl-18 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
@@ -184,17 +251,18 @@ export const CreateInvoice: React.FC = () => {
                   <input 
                     type="number" 
                     min="0"
-                    placeholder="Price ($)" 
+                    step="any"
+                    placeholder="Price (₹)" 
                     value={item.unitPrice}
                     onChange={(e) => handleItemChange(item.id, 'unitPrice', Number(e.target.value))}
                     className="w-full px-2 py-1.5 text-sm text-right rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
                   />
                 </div>
-                <span className="w-24 text-right font-bold text-sm text-slate-900 dark:text-slate-100">
-                  ${item.total.toLocaleString()}
+                <span className="w-28 text-right font-bold text-sm text-slate-900 dark:text-slate-100">
+                  {formatINR(item.total)}
                 </span>
                 <button 
-                  type="button"
+                  type="button" 
                   onClick={() => removeItem(item.id)}
                   className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
                 >
@@ -216,23 +284,23 @@ export const CreateInvoice: React.FC = () => {
         <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col items-end space-y-2 text-sm">
           <div className="flex items-center gap-8 text-slate-600 dark:text-slate-400">
             <span>Subtotal:</span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">${subtotal.toLocaleString()}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{formatINR(subtotal)}</span>
           </div>
           <div className="flex items-center gap-4 text-slate-600 dark:text-slate-400">
             <span>Tax Rate (%):</span>
             <input 
               type="number" 
-              min="0"
-              max="100"
+              min="0" 
+              max="100" 
               value={taxRate}
               onChange={(e) => setTaxRate(Number(e.target.value))}
               className="w-16 px-2 py-1 text-xs text-right rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
             />
-            <span className="w-20 text-right font-semibold text-slate-900 dark:text-slate-100">${taxAmount.toLocaleString()}</span>
+            <span className="w-28 text-right font-semibold text-slate-900 dark:text-slate-100">{formatINR(taxAmount)}</span>
           </div>
           <div className="flex items-center gap-8 text-base font-bold text-slate-900 dark:text-slate-100 border-t border-slate-200 dark:border-slate-800 pt-2">
             <span>Total Amount:</span>
-            <span className="text-blue-600 dark:text-blue-400">${grandTotal.toLocaleString()}</span>
+            <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatINR(grandTotal)}</span>
           </div>
         </div>
       </div>

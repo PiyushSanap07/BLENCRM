@@ -1,6 +1,6 @@
 import React from 'react';
 import { mockMetrics, mockRecentActivities } from '../mocks/dashboardData';
-import { ArrowUpRight, ArrowDownRight, Plus, FileText, UserPlus, DollarSign } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Plus, FileText, UserPlus, IndianRupee } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const DashboardOverview: React.FC = () => {
@@ -50,20 +50,26 @@ export const DashboardOverview: React.FC = () => {
             <Link to="/dashboard/activities" className="text-xs text-blue-600 hover:underline">View all</Link>
           </div>
           <div className="space-y-4">
-            {mockRecentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3 pb-3 border-b border-slate-100 dark:border-slate-900 last:border-0 last:pb-0">
-                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-xs mt-0.5">
-                  {activity.user[0]}
-                </div>
-                <div className="flex-1 text-sm">
-                  <p className="text-slate-800 dark:text-slate-200">
-                    <span className="font-semibold">{activity.user}</span> {activity.action}{' '}
-                    <span className="font-medium text-blue-600 dark:text-blue-400">{activity.target}</span>
-                  </p>
-                  <span className="text-xs text-slate-400">{activity.timestamp}</span>
-                </div>
+            {mockRecentActivities.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-sm">
+                No recent activity recorded yet.
               </div>
-            ))}
+            ) : (
+              mockRecentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-3 pb-3 border-b border-slate-100 dark:border-slate-900 last:border-0 last:pb-0">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-xs mt-0.5">
+                    {activity.user[0]}
+                  </div>
+                  <div className="flex-1 text-sm">
+                    <p className="text-slate-800 dark:text-slate-200">
+                      <span className="font-semibold">{activity.user}</span> {activity.action}{' '}
+                      <span className="font-medium text-blue-600 dark:text-blue-400">{activity.target}</span>
+                    </p>
+                    <span className="text-xs text-slate-400">{activity.timestamp}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -77,7 +83,7 @@ export const DashboardOverview: React.FC = () => {
                 <UserPlus className="w-4 h-4 text-indigo-500" /> Add New Lead
               </Link>
               <Link to="/dashboard/pipeline" className="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-sm font-medium transition-colors">
-                <DollarSign className="w-4 h-4 text-emerald-500" /> Manage Sales Pipeline
+                <IndianRupee className="w-4 h-4 text-emerald-500" /> Manage Sales Pipeline
               </Link>
               <Link to="/dashboard/invoices/new" className="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-sm font-medium transition-colors">
                 <FileText className="w-4 h-4 text-blue-500" /> Draft New Invoice

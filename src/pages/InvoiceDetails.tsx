@@ -1,11 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { mockInvoices, type Invoice, type InvoiceLineItem } from '../mocks/invoicesData';
+import { apiClient } from '../services/api';
+import { type Invoice, type InvoiceLineItem } from '../mocks/invoicesData';
 import { ArrowLeft, Printer, Mail, Building2, CheckCircle2 } from 'lucide-react';
+import { formatINR } from '../utils/validation';
 
 export const InvoiceDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const invoice: Invoice = mockInvoices.find((inv: Invoice) => inv.id === id) || mockInvoices[0];
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    apiClient.getInvoiceById(id)
+      .then(data => setInvoice(data))
+      .catch(err => {
+        console.error('Invoice fetch error:', err);
+        setInvoice(null);
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500 font-medium">Loading invoice details...</div>;
+  }
+
+  if (!invoice) {
+    return (
+      <div className="space-y-4 max-w-4xl mx-auto">
+        <Link to="/dashboard/invoices" className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+          <ArrowLeft className="w-3.5 h-3.5"/> Back to Invoices
+        </Link>
+        <div className="bg-white dark:bg-slate-950 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500">
+          Invoice not found. No records exist for this invoice ID.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -75,8 +109,8 @@ export const InvoiceDetails: React.FC = () => {
                 <tr key={item.id}>
                   <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{item.description}</td>
                   <td className="p-3 text-center text-slate-600 dark:text-slate-400">{item.quantity}</td>
-                  <td className="p-3 text-right text-slate-600 dark:text-slate-400">${item.unitPrice.toLocaleString()}</td>
-                  <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">${item.total.toLocaleString()}</td>
+                  <td className="p-3 text-right text-slate-600 dark:text-slate-400">{formatINR(item.unitPrice)}</td>
+                  <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">{formatINR(item.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -86,15 +120,15 @@ export const InvoiceDetails: React.FC = () => {
         <div className="flex flex-col items-end space-y-2 text-sm border-t border-slate-100 dark:border-slate-900 pt-4">
           <div className="flex justify-between w-64 text-slate-600 dark:text-slate-400">
             <span>Subtotal:</span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">${invoice.subtotal.toLocaleString()}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{formatINR(invoice.subtotal)}</span>
           </div>
           <div className="flex justify-between w-64 text-slate-600 dark:text-slate-400">
             <span>Tax ({invoice.taxRate}%):</span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">${invoice.taxAmount.toLocaleString()}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{formatINR(invoice.taxAmount)}</span>
           </div>
           <div className="flex justify-between w-64 text-base font-bold text-slate-900 dark:text-slate-100 border-t border-slate-200 dark:border-slate-800 pt-2">
             <span>Grand Total:</span>
-            <span className="text-blue-600 dark:text-blue-400">${invoice.totalAmount.toLocaleString()}</span>
+            <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatINR(invoice.totalAmount)}</span>
           </div>
         </div>
       </div>
