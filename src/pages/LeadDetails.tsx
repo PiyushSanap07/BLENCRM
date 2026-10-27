@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import type { Lead } from '../mocks/leadsData';
 import { 
-  ArrowLeft, Mail, Phone, Building2, User, Calendar, 
+  ArrowLeft, Mail, Phone, Building2, User, 
   IndianRupee, Tag, FileText, Loader2, CheckCircle2 
 } from 'lucide-react';
 import { formatINR, formatIndianPhone } from '../utils/validation';
+import { ConfirmDialog, useToast } from '../components/DialogSystem';
 
 export const LeadDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { showToast } = useToast();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
 
   useEffect(() => {
     const fetchLead = async () => {
@@ -31,25 +33,18 @@ export const LeadDetails: React.FC = () => {
     fetchLead();
   }, [id]);
 
-  const handleConvertToClient = async () => {
+  const handleConfirmConvert = async () => {
     if (!lead) return;
     try {
       setConverting(true);
-      await apiClient.createClient({
-        name: lead.name,
-        company: lead.company,
-        email: lead.email,
-        phone: lead.phone,
-        totalBilled: 0,
-        outstandingBalance: 0,
-        status: 'Active',
-      });
-      alert(`Lead "${lead.name}" converted to client successfully!`);
-      navigate('/dashboard/clients');
+      await apiClient.convertLeadToClient(lead.id);
+      showToast(`Lead "${lead.name}" converted to client successfully!`, 'success');
+      setLead(prev => prev ? { ...prev, convertedToClient: 1 } : null);
     } catch (err: any) {
-      alert(`Error converting lead: ${err.message}`);
+      showToast(`Error converting lead: ${err.message}`, 'error');
     } finally {
       setConverting(false);
+      setShowConvertConfirm(false);
     }
   };
 
@@ -88,14 +83,20 @@ export const LeadDetails: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={handleConvertToClient}
-            disabled={converting}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-medium rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-50"
-          >
-            {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            {converting ? 'Converting...' : 'Convert to Client'}
-          </button>
+          {lead.convertedToClient !== 1 ? (
+            <button 
+              onClick={() => setShowConvertConfirm(true)}
+              disabled={converting}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-medium rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {converting ? 'Converting...' : 'Convert to Client'}
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg border border-emerald-200 dark:border-emerald-800">
+              <CheckCircle2 className="w-4 h-4" /> Converted to Client
+            </div>
+          )}
         </div>
       </div>
 
@@ -113,7 +114,7 @@ export const LeadDetails: React.FC = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500 flex items-center gap-2"><IndianRupee className="w-4 h-4"/> Est. Value</span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">{formatINR(lead.estimatedValue || 0)}</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{formatINR(lead.value || lead.estimatedValue || 0)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500 flex items-center gap-2"><Tag className="w-4 h-4"/> Source</span>
@@ -122,10 +123,6 @@ export const LeadDetails: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="text-slate-500 flex items-center gap-2"><User className="w-4 h-4"/> Rep</span>
               <span className="font-medium">{lead.assignedTo}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 flex items-center gap-2"><Calendar className="w-4 h-4"/> Status</span>
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">{lead.status}</span>
             </div>
           </div>
         </div>
@@ -154,6 +151,17 @@ export const LeadDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirm Convert Dialog */}
+      <ConfirmDialog
+        open={showConvertConfirm}
+        title="Convert Lead to Client"
+        message={`Are you sure you want to convert "${lead?.name}" (${lead?.company}) to an active client? This will create a new client profile.`}
+        confirmLabel="Convert to Client"
+        variant="info"
+        onConfirm={handleConfirmConvert}
+        onCancel={() => setShowConvertConfirm(false)}
+      />
     </div>
   );
 };

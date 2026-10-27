@@ -9,6 +9,7 @@ import {
 export const CalendarView: React.FC = () => {
   const [events, setEvents] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,14 +24,18 @@ export const CalendarView: React.FC = () => {
     priority: 'Medium' as TaskItem['priority'],
     dueDate: new Date().toISOString().split('T')[0],
     dueTime: '10:00 AM',
-    assignedTo: 'Piyush Swarnani',
+    assignedTo: '',
   });
 
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      const tasks = await apiClient.getTasks();
+      const [tasks, team] = await Promise.all([
+        apiClient.getTasks(),
+        apiClient.getTeam(),
+      ]);
       setEvents(tasks);
+      setTeamMembers(team);
     } catch (err: any) {
       console.error('Failed to load scheduled events:', err);
     } finally {
@@ -50,7 +55,7 @@ export const CalendarView: React.FC = () => {
       priority: 'Medium',
       dueDate: new Date().toISOString().split('T')[0],
       dueTime: '10:00 AM',
-      assignedTo: 'Piyush Swarnani',
+      assignedTo: teamMembers.length > 0 ? teamMembers[0].name : '',
     });
     setErrorMessage('');
     setIsModalOpen(true);
@@ -268,9 +273,15 @@ export const CalendarView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Piyush Swarnani">Piyush Swarnani</option>
-                    <option value="Alex Rivera">Alex Rivera</option>
-                    <option value="Elena Rostova">Elena Rostova</option>
+                    {teamMembers.length === 0 ? (
+                      <option value="">No team members found</option>
+                    ) : (
+                      teamMembers.map((member: any) => (
+                        <option key={member.id} value={member.name}>
+                          {member.name} {member.role ? `— ${member.role}` : ''}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>

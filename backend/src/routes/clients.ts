@@ -5,7 +5,10 @@ const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
   try {
-    const clients = db.prepare('SELECT * FROM clients ORDER BY createdAt DESC').all();
+    const cols = db.pragma('table_info(clients)') as any[];
+    const hasCreatedAt = cols.some((c: any) => c.name === 'createdAt');
+    const orderClause = hasCreatedAt ? 'ORDER BY createdAt DESC' : 'ORDER BY rowid DESC';
+    const clients = db.prepare(`SELECT * FROM clients ${orderClause}`).all();
     const normalized = clients.map((c: any) => ({
       ...c,
       totalBilled: c.totalBilled || 0,
@@ -68,9 +71,23 @@ router.post('/', (req: Request, res: Response) => {
       numBilled,
       numDue,
       activeProject ? activeProject.trim() : 'Active Engagement',
-      status || 'Active'
+      status || 'Lead'
     );
     res.status(201).json({ message: 'Client registered successfully', id: clientId });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/status', (req: Request, res: Response) => {
+  try {
+    const { status } = req.body;
+    db.prepare('UPDATE clients SET status = ? WHERE id = ?').run(status, req.params.id);
+    const client: any = db.prepare('SELECT leadId FROM clients WHERE id = ?').get(req.params.id);
+    if (client && client.leadId) {
+      db.prepare('UPDATE leads SET stage = ? WHERE id = ?').run(status, client.leadId);
+    }
+    res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }

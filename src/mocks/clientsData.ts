@@ -4,7 +4,8 @@ export interface Client {
   company: string;
   email: string;
   phone: string;
-  status: 'Active' | 'On Hold' | 'Completed' | 'Churned';
+  status: 'Lead' | 'Proposal Sent' | 'Negotiation' | 'Won' | string;
+  leadId?: string;
   totalBilled: number;
   outstandingBalance: number;
   activeProject: string;

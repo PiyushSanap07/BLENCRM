@@ -5,9 +5,12 @@ export interface Lead {
   email: string;
   phone: string;
   source: 'Website' | 'LinkedIn' | 'Referral' | 'Cold Outreach' | 'Event';
-  status: 'New' | 'Contacted' | 'Qualified' | 'Unqualified';
+  status?: 'Lead' | 'Proposal Sent' | 'Negotiation' | 'Won' | string;
+  stage?: 'Lead' | 'Proposal Sent' | 'Negotiation' | 'Won' | string;
+  convertedToClient?: number;
   score: number;
   estimatedValue: number;
+  value?: number;
   assignedTo: string;
   createdAt: string;
   notes?: string;

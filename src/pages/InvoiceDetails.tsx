@@ -24,6 +24,25 @@ export const InvoiceDetails: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handleResend = () => {
+    if (!invoice) return;
+    const subject = `Invoice ${invoice.invoiceNumber} from BLENDIGITAL`;
+    const body = [
+      `Hello ${invoice.clientName},`,
+      '',
+      `Please find the details for invoice ${invoice.invoiceNumber}.`,
+      `Company: ${invoice.clientCompany}`,
+      `Total: ${formatINR(invoice.totalAmount)}`,
+      `Due date: ${invoice.dueDate}`,
+      '',
+      `View invoice: ${window.location.href}`,
+      '',
+      'Thank you,',
+      'BLENDIGITAL',
+    ].join('\n');
+    window.location.href = `mailto:${encodeURIComponent(invoice.clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-slate-500 font-medium">Loading invoice details...</div>;
   }
@@ -57,7 +76,10 @@ export const InvoiceDetails: React.FC = () => {
           >
             <Printer className="w-4 h-4" /> Print / PDF
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
+          <button
+            onClick={handleResend}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+          >
             <Mail className="w-4 h-4" /> Resend to Client
           </button>
         </div>

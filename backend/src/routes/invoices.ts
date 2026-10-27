@@ -6,10 +6,17 @@ const router = Router();
 // Get all invoices with their line items
 router.get('/', (req: Request, res: Response) => {
   try {
-    const invoices = db.prepare('SELECT * FROM invoices ORDER BY createdAt DESC').all();
+    const cols = db.pragma('table_info(invoices)') as any[];
+    const hasCreatedAt = cols.some((c: any) => c.name === 'createdAt');
+    const orderClause = hasCreatedAt ? 'ORDER BY createdAt DESC' : 'ORDER BY rowid DESC';
+    const invoices = db.prepare(`SELECT * FROM invoices ${orderClause}`).all();
     const invoicesWithItems = invoices.map((inv: any) => {
-      const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(inv.id);
-      return { ...inv, items };
+      try {
+        const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(inv.id);
+        return { ...inv, items };
+      } catch {
+        return { ...inv, items: [] };
+      }
     });
     res.json(invoicesWithItems);
   } catch (error: any) {
@@ -89,6 +96,27 @@ router.post('/', (req: Request, res: Response) => {
     );
 
     res.status(201).json({ message: 'Invoice created successfully', id });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Update an invoice's workflow status without recording a payment.
+router.patch('/:id/status', (req: Request, res: Response) => {
+  const { status } = req.body;
+  const validStatuses = ['Draft', 'Sent', 'Paid', 'Partially Paid'];
+
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid invoice status' });
+  }
+
+  try {
+    const result = db.prepare('UPDATE invoices SET status = ? WHERE id = ?').run(status, req.params.id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    res.json({ message: 'Invoice status updated successfully', status });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }

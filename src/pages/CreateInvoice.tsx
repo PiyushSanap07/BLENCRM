@@ -3,22 +3,27 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, Send, AlertCircle, Phone } from 'lucide-react';
 import type { InvoiceLineItem } from '../mocks/invoicesData';
 import { formatINR, validateIndianCurrency, validateIndianPhone } from '../utils/validation';
+import { apiClient } from '../services/api';
 
 export const CreateInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const today = new Date();
+  const dueDateDefault = new Date(today);
+  dueDateDefault.setDate(today.getDate() + 14);
 
   const [clientName, setClientName] = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('INV-2026-092');
-  const [issueDate, setIssueDate] = useState('2026-10-19');
-  const [dueDate, setDueDate] = useState('2026-11-02');
+  const [invoiceNumber, setInvoiceNumber] = useState(`INV-${today.getFullYear()}-${Date.now().toString().slice(-6)}`);
+  const [issueDate, setIssueDate] = useState(today.toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(dueDateDefault.toISOString().split('T')[0]);
   const [taxRate, setTaxRate] = useState(18); // Standard GST
   const [errorMessage, setErrorMessage] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const [items, setItems] = useState<InvoiceLineItem[]>([
-    { id: '1', description: 'Full-Stack Web Application Development', quantity: 1, unitPrice: 2500, total: 2500 },
+    { id: crypto.randomUUID(), description: 'Full-Stack Web Application Development', quantity: 1, unitPrice: 2500, total: 2500 },
   ]);
 
   const handleItemChange = (id: string, field: keyof InvoiceLineItem, value: string | number) => {
@@ -39,7 +44,7 @@ export const CreateInvoice: React.FC = () => {
   const addItem = () => {
     setItems(prev => [
       ...prev,
-      { id: Date.now().toString(), description: '', quantity: 1, unitPrice: 0, total: 0 }
+      { id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0, total: 0 }
     ]);
   };
 
@@ -53,12 +58,12 @@ export const CreateInvoice: React.FC = () => {
   const taxAmount = (subtotal * taxRate) / 100;
   const grandTotal = subtotal + taxAmount;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveInvoice = async (status: 'Draft' | 'Sent') => {
+    if (saving) return;
     setErrorMessage('');
 
-    if (!clientCompany.trim() || !clientName.trim() || !clientEmail.trim()) {
-      setErrorMessage('Company Name, Contact Name, and Billing Email are required.');
+    if (!invoiceNumber.trim() || !clientCompany.trim() || !clientName.trim() || !clientEmail.trim()) {
+      setErrorMessage('Invoice Number, Company Name, Contact Name, and Billing Email are required.');
       return;
     }
 
@@ -87,7 +92,75 @@ export const CreateInvoice: React.FC = () => {
       }
     }
 
-    navigate('/dashboard/invoices');
+    const invoiceId = crypto.randomUUID();
+    const invoicePayload = {
+      id: invoiceId,
+      invoiceNumber: invoiceNumber.trim(),
+      clientName: clientName.trim(),
+      clientCompany: clientCompany.trim(),
+      clientEmail: clientEmail.trim(),
+      issueDate,
+      dueDate,
+      status,
+      subtotal,
+      taxRate,
+      taxAmount,
+      totalAmount: grandTotal,
+      paidAmount: 0,
+      items: items.map(item => ({
+        ...item,
+        id: crypto.randomUUID(),
+        description: item.description.trim(),
+      })),
+    };
+
+    try {
+      setSaving(true);
+      await apiClient.createInvoice(invoicePayload);
+
+      if (status === 'Sent') {
+        const itemSummary = invoicePayload.items
+          .map(item => `${item.description} — ${formatINR(item.total)}`)
+          .join('\n');
+        const subject = `Invoice ${invoicePayload.invoiceNumber} from BLENDIGITAL`;
+        const body = [
+          `Hello ${invoicePayload.clientName},`,
+          '',
+          `Please find the details for invoice ${invoicePayload.invoiceNumber}.`,
+          `Company: ${invoicePayload.clientCompany}`,
+          `Total: ${formatINR(invoicePayload.totalAmount)}`,
+          `Due date: ${invoicePayload.dueDate}`,
+          '',
+          'Items:',
+          itemSummary,
+          '',
+          `View invoice: ${window.location.origin}/dashboard/invoices/${invoiceId}`,
+          '',
+          'Thank you,',
+          'BLENDIGITAL',
+        ].join('\n');
+        window.location.href = `mailto:${encodeURIComponent(invoicePayload.clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      } else {
+        navigate('/dashboard/invoices');
+      }
+    } catch (err) {
+      console.error('Failed to save invoice:', err);
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to save invoice. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void saveInvoice('Sent');
+  };
+
+  const handleSaveDraft = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const form = e.currentTarget.form;
+    if (form?.reportValidity()) {
+      void saveInvoice('Draft');
+    }
   };
 
   return (
@@ -110,16 +183,18 @@ export const CreateInvoice: React.FC = () => {
         <div className="flex items-center gap-3">
           <button 
             type="button"
-            onClick={() => navigate('/dashboard/invoices')}
+            onClick={handleSaveDraft}
+            disabled={saving}
             className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-800 text-sm font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
           >
-            <Save className="w-4 h-4" /> Save Draft
+            <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Draft'}
           </button>
           <button 
             type="submit"
+            disabled={saving}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
           >
-            <Send className="w-4 h-4" /> Send Invoice
+            <Send className="w-4 h-4" /> {saving ? 'Saving...' : 'Send Invoice'}
           </button>
         </div>
       </div>
@@ -179,10 +254,23 @@ export const CreateInvoice: React.FC = () => {
               </div>
               <input 
                 type="tel"
-                placeholder="98765 43210"
-                maxLength={14}
+                inputMode="numeric"
+                placeholder="9876543210"
+                maxLength={10}
                 value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  setClientPhone(digitsOnly);
+                }}
+                onKeyDown={(e) => {
+                  if (
+                    !/^\d$/.test(e.key) &&
+                    !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key) &&
+                    !e.ctrlKey && !e.metaKey
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
                 className="w-full pl-18 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
@@ -195,6 +283,7 @@ export const CreateInvoice: React.FC = () => {
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Invoice Number</label>
             <input 
               type="text" 
+              required
               value={invoiceNumber}
               onChange={(e) => setInvoiceNumber(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none font-mono"

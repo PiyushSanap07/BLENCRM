@@ -4,12 +4,15 @@ import { apiClient } from '../services/api';
 import { Plus, Search, Filter, Building2, IndianRupee, AlertCircle } from 'lucide-react';
 import { formatINR, validateIndianCurrency } from '../utils/validation';
 
+const INVOICE_STATUS_FILTERS = ['All', 'Paid', 'Partially Paid', 'Sent', 'Draft'] as const;
+
 export const InvoicesList: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [statusError, setStatusError] = useState('');
   
   // Payment modal state
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -67,13 +70,27 @@ export const InvoicesList: React.FC = () => {
     }
   };
 
+  const handleInvoiceStatusChange = async (invoiceId: string, status: string) => {
+    setStatusError('');
+    try {
+      await apiClient.updateInvoiceStatus(invoiceId, status);
+      setInvoices(prev => prev.map(invoice =>
+        invoice.id === invoiceId ? { ...invoice, status } : invoice
+      ));
+    } catch (err) {
+      console.error('Failed to update invoice status:', err);
+      setStatusError(err instanceof Error ? err.message : 'Failed to update invoice status.');
+    }
+  };
+
   const filteredInvoices = invoices.filter((inv) => {
     const matchesSearch = 
-      inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.clientCompany.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+      String(inv.invoiceNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(inv.clientCompany || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(inv.clientName || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'All' || inv.status === statusFilter;
+    const matchesStatus = statusFilter === 'All' ||
+      String(inv.status || '').trim().toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
@@ -111,21 +128,34 @@ export const InvoicesList: React.FC = () => {
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
           <Filter className="w-4 h-4 text-slate-400 hidden sm:block" />
-          {['All', 'Paid', 'Partially Paid', 'Sent', 'Draft'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                statusFilter === status 
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
+          {INVOICE_STATUS_FILTERS.map((status) => {
+            const count = status === 'All'
+              ? invoices.length
+              : invoices.filter(invoice =>
+                  String(invoice.status || '').trim().toLowerCase() === status.toLowerCase()
+                ).length;
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  statusFilter === status
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
+                }`}
+              >
+                {status} <span className="ml-1 opacity-70">{count}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {statusError && (
+        <div role="alert" className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-lg text-sm">
+          {statusError}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -146,7 +176,9 @@ export const InvoicesList: React.FC = () => {
               {filteredInvoices.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-400">
-                    No invoices recorded in SQLite. Click "Create Invoice" to generate your first invoice.
+                    {invoices.length === 0
+                      ? 'No invoices recorded in SQLite. Click "Create Invoice" to generate your first invoice.'
+                      : `No ${statusFilter === 'All' ? '' : `${statusFilter} `}invoices match your current filters.`}
                   </td>
                 </tr>
               ) : (
@@ -165,16 +197,23 @@ export const InvoicesList: React.FC = () => {
                     <td className="p-4 font-bold text-slate-900 dark:text-slate-100">{formatINR(inv.totalAmount)}</td>
                     <td className="p-4 text-emerald-600 dark:text-emerald-400 font-semibold">{formatINR(inv.paidAmount)}</td>
                     <td className="p-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
-                        inv.status === 'Partially Paid' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
-                        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      <select
+                        aria-label={`Update status for invoice ${inv.invoiceNumber}`}
+                        value={INVOICE_STATUS_FILTERS.includes(inv.status) && inv.status !== 'All' ? inv.status : 'Draft'}
+                        onChange={(e) => handleInvoiceStatusChange(inv.id, e.target.value)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
+                          inv.status === 'Partially Paid' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
+                          inv.status === 'Sent' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                       }`}>
-                        {inv.status}
-                      </span>
+                        {INVOICE_STATUS_FILTERS.filter(status => status !== 'All').map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="p-4 text-right space-x-2">
-                      {inv.status !== 'Paid' && (
+                      {(inv.totalAmount - (inv.paidAmount || 0)) > 0 && (
                         <button
                           onClick={() => { setSelectedInvoice(inv); setPaymentAmount((inv.totalAmount - inv.paidAmount).toString()); setPaymentError(''); }}
                           className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-xs font-semibold rounded transition-colors"

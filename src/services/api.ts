@@ -1,151 +1,112 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5000/api';
 
 export const apiClient = {
-  // Invoices
-  getInvoices: async () => {
-    const res = await fetch(`${API_BASE_URL}/invoices`);
-    if (!res.ok) throw new Error('Failed to fetch invoices');
-    return res.json();
-  },
-
-  getInvoiceById: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/invoices/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch invoice');
-    return res.json();
-  },
-
-  createInvoice: async (invoiceData: any) => {
-    const res = await fetch(`${API_BASE_URL}/invoices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(invoiceData),
-    });
-    if (!res.ok) throw new Error('Failed to create invoice');
-    return res.json();
-  },
-
-  recordPayment: async (invoiceId: string, paymentData: { paymentAmount: number; paymentMethod: string; transactionRef?: string }) => {
-    const res = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/payment`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(paymentData),
-    });
-    if (!res.ok) throw new Error('Failed to record payment');
-    return res.json();
-  },
-
-  // Payments Ledger
-  getPayments: async () => {
-    const res = await fetch(`${API_BASE_URL}/payments`);
-    if (!res.ok) throw new Error('Failed to fetch payments');
-    return res.json();
-  },
-
-  // Leads
   getLeads: async () => {
-    const res = await fetch(`${API_BASE_URL}/leads`);
-    if (!res.ok) throw new Error('Failed to fetch leads');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/leads`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
+  createLead: async (data: any) => (await fetch(`${API_BASE}/leads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json(),
+  updateLeadStage: async (id: string, stage: string) => (await fetch(`${API_BASE}/leads/${id}/stage`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }) })).json(),
+  convertLeadToClient: async (id: string) => (await fetch(`${API_BASE}/leads/${id}/convert`, { method: 'POST' })).json(),
+  deleteLead: async (id: string) => (await fetch(`${API_BASE}/leads/${id}`, { method: 'DELETE' })).json(),
 
-  createLead: async (leadData: any) => {
-    const res = await fetch(`${API_BASE_URL}/leads`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(leadData),
-    });
-    if (!res.ok) throw new Error('Failed to create lead');
-    return res.json();
-  },
-
-  deleteLead: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/leads/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error('Failed to delete lead');
-    return res.json();
-  },
-
-  // Tasks & Activities
-  getTasks: async () => {
-    const res = await fetch(`${API_BASE_URL}/tasks`);
-    if (!res.ok) throw new Error('Failed to fetch tasks');
-    return res.json();
-  },
-
-  createTask: async (taskData: any) => {
-    const res = await fetch(`${API_BASE_URL}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(taskData),
-    });
-    if (!res.ok) throw new Error('Failed to create task');
-    return res.json();
-  },
-
-  toggleTask: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/tasks/${id}/toggle`, {
-      method: 'PATCH',
-    });
-    if (!res.ok) throw new Error('Failed to toggle task');
-    return res.json();
-  },
-
-  deleteTask: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error('Failed to delete task');
-    return res.json();
-  },
-
-  // Clients
   getClients: async () => {
-    const res = await fetch(`${API_BASE_URL}/clients`);
-    if (!res.ok) throw new Error('Failed to fetch clients');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/clients`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
+  createClient: async (data: any) => (await fetch(`${API_BASE}/clients`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json(),
+  updateClientStatus: async (id: string, status: string) => (await fetch(`${API_BASE}/clients/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })).json(),
+  deleteClient: async (id: string) => (await fetch(`${API_BASE}/clients/${id}`, { method: 'DELETE' })).json(),
 
-  createClient: async (clientData: any) => {
-    const res = await fetch(`${API_BASE_URL}/clients`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(clientData),
-    });
-    if (!res.ok) throw new Error('Failed to create client');
-    return res.json();
-  },
-
-  deleteClient: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error('Failed to delete client');
-    return res.json();
-  },
-
-  // Team Members
   getTeam: async () => {
-    const res = await fetch(`${API_BASE_URL}/team`);
-    if (!res.ok) throw new Error('Failed to fetch team members');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/team`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
+  createTeamMember: async (data: any) => (await fetch(`${API_BASE}/team`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json(),
+  deleteTeamMember: async (id: string) => (await fetch(`${API_BASE}/team/${id}`, { method: 'DELETE' })).json(),
 
-  createTeamMember: async (memberData: any) => {
-    const res = await fetch(`${API_BASE_URL}/team`, {
+  getInvoices: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/invoices`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+  getInvoiceById: async (id: string) => (await fetch(`${API_BASE}/invoices/${id}`)).json(),
+  createInvoice: async (data: any) => {
+    const res = await fetch(`${API_BASE}/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(memberData),
+      body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create team member');
-    return res.json();
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Failed to save invoice');
+    return result;
+  },
+  updateInvoiceStatus: async (id: string, status: string) => {
+    const res = await fetch(`${API_BASE}/invoices/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Failed to update invoice status');
+    return result;
+  },
+  recordPayment: async (id: string, data: any) => (await fetch(`${API_BASE}/invoices/${id}/payment`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json(),
+  getPayments: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/payments`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
 
-  deleteTeamMember: async (id: string) => {
-    const res = await fetch(`${API_BASE_URL}/team/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error('Failed to delete team member');
-    return res.json();
+  getTasks: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
+  createTask: async (data: any) => (await fetch(`${API_BASE}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json(),
+  toggleTask: async (id: string) => (await fetch(`${API_BASE}/tasks/${id}/toggle`, { method: 'PATCH' })).json(),
+  updateTaskStatus: async (id: string, status: string) => {
+    const res = await fetch(`${API_BASE}/tasks/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update task status');
+    return data;
+  },
+  deleteTask: async (id: string) => (await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })).json(),
 };

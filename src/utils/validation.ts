@@ -26,16 +26,29 @@ export function validateIndianPhone(phone: string): ValidationResult<string> {
     };
   }
 
-  // Strip spaces, dashes, parentheses
-  let cleaned = phone.trim().replace(/[\s\-().]/g, '');
+  // Reject any letters/alphabets explicitly
+  if (/[a-zA-Z]/.test(phone)) {
+    return {
+      isValid: false,
+      error: 'Phone number cannot contain letters or alphabets. Only digits 0-9 are allowed.',
+    };
+  }
 
-  // Handle +91 or 91 country code
-  if (cleaned.startsWith('+91')) {
-    cleaned = cleaned.substring(3);
-  } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+  // Extract digits only
+  const digits = phone.trim().replace(/\D/g, '');
+
+  let cleaned = digits;
+  if (cleaned.startsWith('91') && cleaned.length === 12) {
     cleaned = cleaned.substring(2);
   } else if (cleaned.startsWith('0') && cleaned.length === 11) {
     cleaned = cleaned.substring(1);
+  }
+
+  if (cleaned.length !== 10) {
+    return {
+      isValid: false,
+      error: `Phone number must be exactly 10 digits (currently ${cleaned.length} digits).`,
+    };
   }
 
   // Check 10 digits starting with 6-9
@@ -43,7 +56,7 @@ export function validateIndianPhone(phone: string): ValidationResult<string> {
   if (!indianMobileRegex.test(cleaned)) {
     return {
       isValid: false,
-      error: 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210).',
+      error: 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.',
     };
   }
 

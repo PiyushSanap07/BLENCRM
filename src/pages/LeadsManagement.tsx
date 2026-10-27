@@ -3,9 +3,8 @@ import { Link } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import type { Lead } from '../mocks/leadsData';
 import { 
-  Search, Filter, Plus, Building2, 
-  CheckCircle, Clock, XCircle, AlertCircle,
-  X, Loader2, Trash2, Mail, Phone, IndianRupee
+  Search, Plus, Building2, 
+  CheckCircle2, AlertCircle, X, Loader2, Trash2, Mail, Phone, IndianRupee
 } from 'lucide-react';
 import { 
   validateIndianPhone, 
@@ -14,12 +13,24 @@ import {
   formatINR,
   formatIndianPhone 
 } from '../utils/validation';
+import { ConfirmDialog, useToast } from '../components/DialogSystem';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
 
 export const LeadsManagement: React.FC = () => {
+  const { showToast } = useToast();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [leadToDelete, setLeadToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [leadToConvert, setLeadToConvert] = useState<{ id: string; name: string } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,8 +46,7 @@ export const LeadsManagement: React.FC = () => {
     phone: '',
     estimatedValue: '',
     source: 'Website' as Lead['source'],
-    status: 'New' as Lead['status'],
-    assignedTo: 'Piyush Swarnani',
+    assignedTo: '',
     score: '75',
     notes: '',
   });
@@ -53,8 +63,20 @@ export const LeadsManagement: React.FC = () => {
     }
   };
 
+  const fetchTeamMembers = async () => {
+    try {
+      const data = await apiClient.getTeam();
+      setTeamMembers(data);
+      return data;
+    } catch (err: any) {
+      console.error('Failed to fetch team members:', err);
+      return [];
+    }
+  };
+
   useEffect(() => {
     fetchLeads();
+    fetchTeamMembers();
   }, []);
 
   const handleOpenModal = () => {
@@ -65,14 +87,26 @@ export const LeadsManagement: React.FC = () => {
       phone: '',
       estimatedValue: '',
       source: 'Website',
-      status: 'New',
-      assignedTo: 'Piyush Swarnani',
+      assignedTo: teamMembers.length > 0 ? teamMembers[0].name : '',
       score: '75',
       notes: '',
     });
     setErrorMessage('');
     setFieldErrors({});
     setIsModalOpen(true);
+  };
+
+  const handleConfirmConvert = async () => {
+    if (!leadToConvert) return;
+    try {
+      await apiClient.convertLeadToClient(leadToConvert.id);
+      showToast(`Lead "${leadToConvert.name}" successfully converted to client!`, 'success');
+      await fetchLeads();
+    } catch (err: any) {
+      showToast(`Error converting lead: ${err.message}`, 'error');
+    } finally {
+      setLeadToConvert(null);
+    }
   };
 
   const handleCloseModal = () => {
@@ -140,7 +174,7 @@ export const LeadsManagement: React.FC = () => {
         value: costValidation.value!,
         estimatedValue: costValidation.value!,
         source: formData.source,
-        status: formData.status,
+        stage: 'Lead',
         score: scoreValidation.value!,
         assignedTo: formData.assignedTo,
         notes: formData.notes.trim(),
@@ -149,48 +183,40 @@ export const LeadsManagement: React.FC = () => {
       await apiClient.createLead(payload);
       await fetchLeads();
       setIsModalOpen(false);
+      showToast('Lead created successfully!', 'success');
     } catch (err: any) {
       console.error('Error creating lead:', err);
       setErrorMessage(err.message || 'Failed to create lead. Make sure backend is running.');
+      showToast(err.message || 'Failed to create lead', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteLead = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete lead "${name}"?`)) return;
+  const handleDeleteLead = (id: string, name: string) => {
+    setLeadToDelete({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!leadToDelete) return;
     try {
-      await apiClient.deleteLead(id);
-      setLeads(prev => prev.filter(l => l.id !== id));
+      await apiClient.deleteLead(leadToDelete.id);
+      setLeads(prev => prev.filter(l => l.id !== leadToDelete.id));
+      showToast(`Lead "${leadToDelete.name}" deleted successfully`, 'success');
     } catch (err: any) {
-      alert(`Error deleting lead: ${err.message}`);
+      showToast(`Error deleting lead: ${err.message}`, 'error');
+    } finally {
+      setLeadToDelete(null);
     }
   };
 
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
+    return (
       lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'All' || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
+      lead.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
-
-  const getStatusBadge = (status: Lead['status']) => {
-    switch (status) {
-      case 'New':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"><Clock className="w-3 h-3"/> New</span>;
-      case 'Contacted':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"><AlertCircle className="w-3 h-3"/> Contacted</span>;
-      case 'Qualified':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><CheckCircle className="w-3 h-3"/> Qualified</span>;
-      case 'Unqualified':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"><XCircle className="w-3 h-3"/> Unqualified</span>;
-      default:
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">{status}</span>;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -208,8 +234,8 @@ export const LeadsManagement: React.FC = () => {
         </button>
       </div>
 
-      {/* Search & Status Filters */}
-      <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Search Bar */}
+      <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
@@ -220,23 +246,6 @@ export const LeadsManagement: React.FC = () => {
             className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100"
           />
         </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
-          <Filter className="w-4 h-4 text-slate-400 hidden sm:block" />
-          {['All', 'New', 'Contacted', 'Qualified', 'Unqualified'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                statusFilter === status 
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Leads Table */}
@@ -246,7 +255,6 @@ export const LeadsManagement: React.FC = () => {
             <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-medium">
               <tr>
                 <th className="p-4">Lead / Company</th>
-                <th className="p-4">Status</th>
                 <th className="p-4">Score</th>
                 <th className="p-4">Est. Value</th>
                 <th className="p-4">Source</th>
@@ -257,14 +265,14 @@ export const LeadsManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-400">
+                  <td colSpan={6} className="p-12 text-center text-slate-400">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
                     Loading leads from database...
                   </td>
                 </tr>
               ) : filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-400">
+                  <td colSpan={6} className="p-12 text-center text-slate-400">
                     <p className="font-medium text-slate-600 dark:text-slate-300">No leads found.</p>
                     <p className="text-xs text-slate-400 mt-1">Click "Add New Lead" above to capture your first opportunity.</p>
                   </td>
@@ -283,7 +291,6 @@ export const LeadsManagement: React.FC = () => {
                         </p>
                       </Link>
                     </td>
-                    <td className="p-4">{getStatusBadge(lead.status)}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <div className="w-12 bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
@@ -295,7 +302,7 @@ export const LeadsManagement: React.FC = () => {
                         <span className="text-xs font-semibold">{lead.score || 50}</span>
                       </div>
                     </td>
-                    <td className="p-4 font-medium">{formatINR(lead.estimatedValue || 0)}</td>
+                    <td className="p-4 font-medium">{formatINR(lead.value || lead.estimatedValue || 0)}</td>
                     <td className="p-4 text-xs text-slate-500">{lead.source}</td>
                     <td className="p-4 text-xs text-slate-600 dark:text-slate-400">{lead.assignedTo}</td>
                     <td className="p-4 text-right">
@@ -306,6 +313,19 @@ export const LeadsManagement: React.FC = () => {
                         >
                           View
                         </Link>
+                        {lead.convertedToClient !== 1 ? (
+                          <button
+                            onClick={() => setLeadToConvert({ id: lead.id, name: lead.name })}
+                            className="px-2.5 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Convert to Client"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Convert to Client
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded border border-emerald-200 dark:border-emerald-800">
+                            ✓ Converted
+                          </span>
+                        )}
                         <button
                           onClick={() => handleDeleteLead(lead.id, lead.name)}
                           title="Delete Lead"
@@ -438,13 +458,24 @@ export const LeadsManagement: React.FC = () => {
                     </div>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
-                      placeholder="98765 43210"
-                      maxLength={14}
+                      placeholder="9876543210"
+                      maxLength={10}
                       value={formData.phone}
                       onChange={(e) => {
-                        setFormData({ ...formData, phone: e.target.value });
+                        const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormData({ ...formData, phone: digitsOnly });
                         if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+                      }}
+                      onKeyDown={(e) => {
+                        if (
+                          !/^\d$/.test(e.key) &&
+                          !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key) &&
+                          !e.ctrlKey && !e.metaKey
+                        ) {
+                          e.preventDefault();
+                        }
                       }}
                       className={`w-full pl-18 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border ${
                         fieldErrors.phone ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
@@ -516,23 +547,7 @@ export const LeadsManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Lead Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="New">New</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Qualified">Qualified</option>
-                    <option value="Unqualified">Unqualified</option>
-                  </select>
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Lead Source
@@ -559,9 +574,13 @@ export const LeadsManagement: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Piyush Swarnani">Piyush Swarnani</option>
-                    <option value="Alex Rivera">Alex Rivera</option>
-                    <option value="Elena Rostova">Elena Rostova</option>
+                    {teamMembers.length === 0 ? (
+                      <option value="">No team members found</option>
+                    ) : (
+                      teamMembers.map((member) => (
+                        <option key={member.id} value={member.name}>{member.name} — {member.role}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -602,6 +621,28 @@ export const LeadsManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm Convert Dialog */}
+      <ConfirmDialog
+        open={!!leadToConvert}
+        title="Convert Lead to Client"
+        message={`Are you sure you want to convert "${leadToConvert?.name}" into an active client? This lead will be automatically registered in the Clients Directory.`}
+        confirmLabel="Convert to Client"
+        variant="info"
+        onConfirm={handleConfirmConvert}
+        onCancel={() => setLeadToConvert(null)}
+      />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={!!leadToDelete}
+        title="Delete Lead"
+        message={`Are you sure you want to delete lead "${leadToDelete?.name}"? All associated data will be removed.`}
+        confirmLabel="Delete Lead"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setLeadToDelete(null)}
+      />
     </div>
   );
 };

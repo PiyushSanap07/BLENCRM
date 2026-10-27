@@ -4,6 +4,7 @@ import {
   Plus, Mail, Shield, UserCheck, Clock, 
   Trash2, X, Loader2, AlertCircle, User 
 } from 'lucide-react';
+import { ConfirmDialog, useToast } from '../components/DialogSystem';
 
 export interface TeamMember {
   id: string;
@@ -13,15 +14,11 @@ export interface TeamMember {
   status: 'Active' | 'Pending';
 }
 
-const defaultTeam: TeamMember[] = [
-  { id: 'tm-1', name: 'Piyush Swarnani', email: 'piyush@blendigital.io', role: 'Super Admin', status: 'Active' },
-  { id: 'tm-2', name: 'Alex Rivera', email: 'alex@blendigital.io', role: 'Sales Manager', status: 'Active' },
-  { id: 'tm-3', name: 'Elena Rostova', email: 'elena@blendigital.io', role: 'Accountant', status: 'Active' },
-];
-
 export const TeamManagement: React.FC = () => {
+  const { showToast } = useToast();
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [memberToDelete, setMemberToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,10 +37,10 @@ export const TeamManagement: React.FC = () => {
     try {
       setLoading(true);
       const data = await apiClient.getTeam();
-      setTeam(data.length > 0 ? data : defaultTeam);
+      setTeam(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Failed to load team members:', err);
-      setTeam(defaultTeam);
+      setTeam([]);
     } finally {
       setLoading(false);
     }
@@ -69,7 +66,7 @@ export const TeamManagement: React.FC = () => {
     setErrorMessage('');
   };
 
-  const handleInviteMember = async (e: React.FormEvent) => {
+  const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim()) {
       setErrorMessage('Name and Email are required.');
@@ -90,21 +87,30 @@ export const TeamManagement: React.FC = () => {
       await apiClient.createTeamMember(payload);
       await fetchTeam();
       setIsModalOpen(false);
+      showToast('Team member added successfully!', 'success');
     } catch (err: any) {
       console.error('Error adding team member:', err);
       setErrorMessage(err.message || 'Failed to add team member.');
+      showToast(err.message || 'Failed to add team member', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteMember = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${name} from the team?`)) return;
+  const handleDeleteMember = (id: string, name: string) => {
+    setMemberToDelete({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return;
     try {
-      await apiClient.deleteTeamMember(id);
-      setTeam(prev => prev.filter(m => m.id !== id));
+      await apiClient.deleteTeamMember(memberToDelete.id);
+      setTeam(prev => prev.filter(m => m.id !== memberToDelete.id));
+      showToast(`Removed ${memberToDelete.name} from the team`, 'success');
     } catch (err: any) {
-      alert(`Error removing member: ${err.message}`);
+      showToast(`Error removing member: ${err.message}`, 'error');
+    } finally {
+      setMemberToDelete(null);
     }
   };
 
@@ -122,7 +128,7 @@ export const TeamManagement: React.FC = () => {
           onClick={handleOpenModal}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-sm font-medium transition-all shadow-sm cursor-pointer"
         >
-          <Plus className="w-4 h-4" /> Invite Team Member
+          <Plus className="w-4 h-4" /> Add to Team
         </button>
       </div>
 
@@ -137,7 +143,7 @@ export const TeamManagement: React.FC = () => {
           ) : team.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-sm">
               <p className="font-medium text-slate-600 dark:text-slate-300">No team members registered.</p>
-              <p className="text-xs text-slate-400 mt-1">Click "Invite Team Member" above to grant workspace access.</p>
+              <p className="text-xs text-slate-400 mt-1">Click "Add to Team" above to grant workspace access.</p>
             </div>
           ) : (
             team.map((member: TeamMember) => (
@@ -183,7 +189,7 @@ export const TeamManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Invite Team Member Modal */}
+      {/* Add Team Member Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -194,7 +200,7 @@ export const TeamManagement: React.FC = () => {
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Invite Team Member</h2>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Add Team Member</h2>
                   <p className="text-xs text-slate-500">Provide user credentials and assign system role</p>
                 </div>
               </div>
@@ -207,7 +213,7 @@ export const TeamManagement: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleInviteMember} className="p-5 space-y-4">
+            <form onSubmit={handleAddMember} className="p-5 space-y-4">
               {errorMessage && (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-lg text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -298,13 +304,24 @@ export const TeamManagement: React.FC = () => {
                   className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-medium rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-50"
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {submitting ? 'Inviting...' : 'Invite Member'}
+                  {submitting ? 'Adding...' : 'Add Member'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Confirm Remove Dialog */}
+      <ConfirmDialog
+        open={!!memberToDelete}
+        title="Remove Team Member"
+        message={`Are you sure you want to remove ${memberToDelete?.name} from the team? They will lose access to the CRM.`}
+        confirmLabel="Remove Member"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setMemberToDelete(null)}
+      />
     </div>
   );
 };

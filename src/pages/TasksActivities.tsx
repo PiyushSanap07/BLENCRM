@@ -6,12 +6,27 @@ import {
   Clock, Calendar, User, Building2, Tag,
   X, Loader2, Trash2, AlertCircle
 } from 'lucide-react';
+import { ConfirmDialog, useToast } from '../components/DialogSystem';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
+const TASK_STATUSES: TaskItem['status'][] = ['Pending', 'In Progress', 'Completed'];
+const TASK_FILTERS = ['All', ...TASK_STATUSES] as const;
 
 export const TasksActivities: React.FC = () => {
+  const { showToast } = useToast();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [taskToDelete, setTaskToDelete] = useState<{ id: string; title: string } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,7 +41,7 @@ export const TasksActivities: React.FC = () => {
     priority: 'Medium' as TaskItem['priority'],
     dueDate: new Date().toISOString().split('T')[0],
     dueTime: '02:00 PM',
-    assignedTo: 'Piyush Swarnani',
+    assignedTo: '',
   });
 
   const fetchTasks = async () => {
@@ -41,8 +56,20 @@ export const TasksActivities: React.FC = () => {
     }
   };
 
+  const fetchTeamMembers = async () => {
+    try {
+      const data = await apiClient.getTeam();
+      setTeamMembers(data);
+      return data;
+    } catch (err: any) {
+      console.error('Failed to fetch team members:', err);
+      return [];
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
+    fetchTeamMembers();
   }, []);
 
   const handleOpenModal = () => {
@@ -53,7 +80,7 @@ export const TasksActivities: React.FC = () => {
       priority: 'Medium',
       dueDate: new Date().toISOString().split('T')[0],
       dueTime: '02:00 PM',
-      assignedTo: 'Piyush Swarnani',
+      assignedTo: teamMembers.length > 0 ? teamMembers[0].name : '',
     });
     setErrorMessage('');
     setIsModalOpen(true);
@@ -89,43 +116,64 @@ export const TasksActivities: React.FC = () => {
       await apiClient.createTask(payload);
       await fetchTasks();
       setIsModalOpen(false);
+      showToast('Task created successfully!', 'success');
     } catch (err: any) {
       console.error('Error creating task:', err);
       setErrorMessage(err.message || 'Failed to create task.');
+      showToast(err.message || 'Failed to create task', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   const toggleTaskStatus = async (taskId: string) => {
-    // Optimistic UI update
-    setTasks(prev =>
-      prev.map(task => {
-        if (task.id === taskId) {
-          const nextStatus: TaskItem['status'] = 
-            task.status === 'Completed' ? 'Pending' : 'Completed';
-          return { ...task, status: nextStatus };
-        }
-        return task;
-      })
-    );
-
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+    const nextStatus: TaskItem['status'] =
+      task.status === 'Completed' ? 'Pending' : 'Completed';
     try {
-      await apiClient.toggleTask(taskId);
+      await apiClient.updateTaskStatus(taskId, nextStatus);
+      setTasks(prev =>
+        prev.map(item => item.id === taskId ? { ...item, status: nextStatus } : item)
+      );
+      showToast('Task status updated', 'info');
     } catch (err: any) {
       console.error('Failed to update task status in backend:', err);
-      // Revert if failed
-      fetchTasks();
+      showToast('Failed to update task status', 'error');
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (!window.confirm('Delete this task?')) return;
+  const handleTaskStatusChange = async (taskId: string, status: TaskItem['status']) => {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task || task.status === status) return;
+
     try {
-      await apiClient.deleteTask(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      await apiClient.updateTaskStatus(taskId, status);
+      setTasks(prev =>
+        prev.map(item => item.id === taskId ? { ...item, status } : item)
+      );
+      showToast('Task status updated', 'success');
     } catch (err: any) {
-      alert(`Error deleting task: ${err.message}`);
+      console.error('Failed to update task status in backend:', err);
+      showToast(err.message || 'Failed to update task status', 'error');
+    }
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    setTaskToDelete({ id: taskId, title: task ? task.title : 'this task' });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return;
+    try {
+      await apiClient.deleteTask(taskToDelete.id);
+      setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
+      showToast('Task deleted successfully', 'success');
+    } catch (err: any) {
+      showToast(`Error deleting task: ${err.message}`, 'error');
+    } finally {
+      setTaskToDelete(null);
     }
   };
 
@@ -183,19 +231,24 @@ export const TasksActivities: React.FC = () => {
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
           <Filter className="w-4 h-4 text-slate-400 hidden sm:block" />
-          {['All', 'Pending', 'In Progress', 'Completed'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                statusFilter === status 
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
+          {TASK_FILTERS.map((status) => {
+            const count = status === 'All'
+              ? tasks.length
+              : tasks.filter(task => task.status === status).length;
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  statusFilter === status
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
+                }`}
+              >
+                {status} <span className="ml-1 opacity-70">{count}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -242,6 +295,14 @@ export const TasksActivities: React.FC = () => {
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 pl-8 sm:pl-0">
                   {getPriorityBadge(task.priority)}
+                  <select
+                    aria-label={`Update status for ${task.title}`}
+                    value={task.status}
+                    onChange={(e) => handleTaskStatusChange(task.id, e.target.value as TaskItem['status'])}
+                    className="px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {TASK_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
+                  </select>
                   <div className="text-right text-xs">
                     <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-slate-400"/> {task.dueDate}
@@ -404,9 +465,13 @@ export const TasksActivities: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Piyush Swarnani">Piyush Swarnani</option>
-                    <option value="Alex Rivera">Alex Rivera</option>
-                    <option value="Elena Rostova">Elena Rostova</option>
+                    {teamMembers.length === 0 ? (
+                      <option value="">No team members found</option>
+                    ) : (
+                      teamMembers.map((member) => (
+                        <option key={member.id} value={member.name}>{member.name} — {member.role}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -434,6 +499,16 @@ export const TasksActivities: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={!!taskToDelete}
+        title="Delete Task"
+        message={`Are you sure you want to delete "${taskToDelete?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete Task"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setTaskToDelete(null)}
+      />
     </div>
   );
 };

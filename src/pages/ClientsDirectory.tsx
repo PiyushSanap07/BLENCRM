@@ -12,12 +12,14 @@ import {
   formatINR, 
   formatIndianPhone 
 } from '../utils/validation';
+import { ConfirmDialog, useToast } from '../components/DialogSystem';
 
 export const ClientsDirectory: React.FC = () => {
+  const { showToast } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,16 +36,17 @@ export const ClientsDirectory: React.FC = () => {
     activeProject: '',
     totalBilled: '0',
     outstandingBalance: '0',
-    status: 'Active' as Client['status'],
+    status: 'Lead' as Client['status'],
   });
 
   const fetchClients = async () => {
     try {
       setLoading(true);
       const data = await apiClient.getClients();
-      setClients(data);
+      setClients(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Failed to load clients:', err);
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -62,7 +65,7 @@ export const ClientsDirectory: React.FC = () => {
       activeProject: '',
       totalBilled: '0',
       outstandingBalance: '0',
-      status: 'Active',
+      status: 'Lead',
     });
     setErrorMessage('');
     setFieldErrors({});
@@ -135,44 +138,52 @@ export const ClientsDirectory: React.FC = () => {
       await apiClient.createClient(payload);
       await fetchClients();
       setIsModalOpen(false);
+      showToast('Client added successfully!', 'success');
     } catch (err: any) {
       console.error('Error creating client:', err);
       setErrorMessage(err.message || 'Failed to create client.');
+      showToast(err.message || 'Failed to create client', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteClient = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to remove client "${name}"?`)) return;
+  const handleDeleteClient = (id: string, name: string) => {
+    setClientToDelete({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!clientToDelete) return;
     try {
-      await apiClient.deleteClient(id);
-      setClients(prev => prev.filter(c => c.id !== id));
+      await apiClient.deleteClient(clientToDelete.id);
+      setClients(prev => prev.filter(c => c.id !== clientToDelete.id));
+      showToast(`Client "${clientToDelete.name}" removed successfully`, 'success');
     } catch (err: any) {
-      alert(`Error deleting client: ${err.message}`);
+      showToast(`Error deleting client: ${err.message}`, 'error');
+    } finally {
+      setClientToDelete(null);
     }
   };
 
-  const filteredClients = clients.filter(client => {
-    const matchesSearch = 
+  const clientList = Array.isArray(clients) ? clients : [];
+  const filteredClients = clientList.filter(client => {
+    return (
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'All' || client.status === statusFilter;
-    return matchesSearch && matchesStatus;
+      client.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
 
   const getStatusBadge = (status: Client['status']) => {
     switch (status) {
-      case 'Active':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><ShieldCheck className="w-3 h-3"/> Active</span>;
-      case 'On Hold':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"><Clock className="w-3 h-3"/> On Hold</span>;
-      case 'Completed':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">Completed</span>;
-      case 'Churned':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"><AlertCircle className="w-3 h-3"/> Churned</span>;
+      case 'Lead':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"><Clock className="w-3 h-3"/> Lead</span>;
+      case 'Proposal Sent':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"><Clock className="w-3 h-3"/> Proposal Sent</span>;
+      case 'Negotiation':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"><AlertCircle className="w-3 h-3"/> Negotiation</span>;
+      case 'Won':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><ShieldCheck className="w-3 h-3"/> Won</span>;
       default:
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">{status}</span>;
     }
@@ -194,8 +205,8 @@ export const ClientsDirectory: React.FC = () => {
         </button>
       </div>
 
-      {/* Search & Status Filters */}
-      <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Search Bar */}
+      <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
@@ -205,22 +216,6 @@ export const ClientsDirectory: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100"
           />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          {['All', 'Active', 'On Hold', 'Completed', 'Churned'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                statusFilter === status 
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -415,13 +410,24 @@ export const ClientsDirectory: React.FC = () => {
                     </div>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
-                      placeholder="98765 43210"
-                      maxLength={14}
+                      placeholder="9876543210"
+                      maxLength={10}
                       value={formData.phone}
                       onChange={(e) => {
-                        setFormData({ ...formData, phone: e.target.value });
+                        const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormData({ ...formData, phone: digitsOnly });
                         if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+                      }}
+                      onKeyDown={(e) => {
+                        if (
+                          !/^\d$/.test(e.key) &&
+                          !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key) &&
+                          !e.ctrlKey && !e.metaKey
+                        ) {
+                          e.preventDefault();
+                        }
                       }}
                       className={`w-full pl-18 pr-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border ${
                         fieldErrors.phone ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
@@ -513,10 +519,10 @@ export const ClientsDirectory: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full px-3 py-2 text-sm rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Active">Active</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Churned">Churned</option>
+                    <option value="Lead">Lead</option>
+                    <option value="Proposal Sent">Proposal Sent</option>
+                    <option value="Negotiation">Negotiation</option>
+                    <option value="Won">Won</option>
                   </select>
                 </div>
               </div>
@@ -544,6 +550,16 @@ export const ClientsDirectory: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Confirm Delete Client Dialog */}
+      <ConfirmDialog
+        open={!!clientToDelete}
+        title="Remove Client"
+        message={`Are you sure you want to remove client "${clientToDelete?.name}"? All related project information will be archived.`}
+        confirmLabel="Remove Client"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setClientToDelete(null)}
+      />
     </div>
   );
 };

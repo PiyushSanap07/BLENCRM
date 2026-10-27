@@ -1,3 +1,42 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ── blenDigital Brand Tokens ─────────────────────────────────────────── */
+:root {
+  --brand-teal:    #00C9A7;
+  --brand-green:   #22C55E;
+  --brand-olive:   #A89000;
+  --brand-orange:  #F97316;
+  --brand-red:     #C0392B;
+
+  /* Primary gradient (teal → green) */
+  --brand-gradient: linear-gradient(135deg, #00C9A7 0%, #22C55E 100%);
+  /* Soft tint for light mode active states */
+  --brand-teal-tint: rgba(0, 201, 167, 0.10);
+}
+
+/* ── Smooth scrollbars ─────────────────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: #00C9A7 transparent; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: #00C9A7; border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Focus ring override: use brand teal ───────────────────────────────── */
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--brand-teal);
+}
+
+/* ── Utility: brand gradient text ──────────────────────────────────────── */
+.brand-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Utility: brand gradient background ────────────────────────────────── */
+.brand-bg {
+  background: var(--brand-gradient);
+}
